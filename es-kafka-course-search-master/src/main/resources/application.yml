@@ -1,0 +1,17 @@
+spring:
+  application.name: search
+  jmx.enabled: false
+
+server.port: 10002
+
+eureka:
+  instance:
+    hostname: search
+    preferIpAddress: true
+  client:
+    registerWithEureka: true
+    fetchRegistry: true
+    serviceUrl:
+      defaultZone: http://localhost:10100/eureka/
+
+management.endpoints.web.exposure.include: '*'
