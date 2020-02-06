@@ -2,7 +2,9 @@ package com.epam.ekc.storage.model;
 
 import java.io.Serializable;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
@@ -51,6 +53,6 @@ public class Book implements Serializable, Identifiable {
 
   @DBRef
   @Field("authors")
-  private Set<Author> authors = new HashSet<>();
+  private List<Author> authors = new ArrayList<>();
 
 }
