@@ -18,6 +18,7 @@ import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -27,7 +28,10 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -39,6 +43,9 @@ public class ElasticService {
     public static final String INDEX_NAME = "book_index";
     public static final String INDEX_MAPPING = "{\n" +
             "  \"properties\": {\n" +
+            "    \"id\": {\n" +
+            "      \"type\": \"keyword\"\n" +
+            "    },\n" +
             "    \"customerId\": {\n" +
             "      \"type\": \"text\"\n" +
             "    },\n" +
@@ -102,7 +109,7 @@ public class ElasticService {
             request.add(prepareIndexRequest(book, indexName));
         }
         client.bulk(request, RequestOptions.DEFAULT);
-        System.out.println("Saved " +books.size()+" books");
+        System.out.println("Saved " + books.size() + " books");
     }
 
     private IndexRequest prepareIndexRequest(Book book, String indexName) {
@@ -128,12 +135,12 @@ public class ElasticService {
         Map<String, Object> result = new HashMap<>();
         SearchResponse response = searchByField(fieldName, value, INDEX_NAME, fromResult, numberOfResults);
         result.put("Total number of found documents", getTotalNumberOfHits(response));
-        result.put("Found documents on positions " + fromResult+"-"+(fromResult+numberOfResults), retrieveResultsFromSearchResult(response));
+        result.put("Found documents on positions " + fromResult + "-" + (fromResult + numberOfResults), retrieveResultsFromSearchResult(response));
         return result;
     }
 
 
-    public SearchResponse searchByField(String fieldName, String value, String indexName, int from, int to) throws IOException {
+    public SearchResponse searchByField(String fieldName, String value, String indexName, int from, int number) throws IOException {
 
         SearchRequest request = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
@@ -141,7 +148,7 @@ public class ElasticService {
         request.source(searchSourceBuilder);
         request.indices(indexName);
         searchSourceBuilder.from(from);
-        searchSourceBuilder.size(to);
+        searchSourceBuilder.size(number);
 
         return client.search(request, RequestOptions.DEFAULT);
     }
@@ -153,7 +160,6 @@ public class ElasticService {
         for (SearchHit hit : hits) {
             books.add(objectMapper.convertValue(hit.getSourceAsMap(), Book.class));
         }
-
         return books;
     }
 
@@ -166,10 +172,12 @@ public class ElasticService {
         SearchRequest request = new SearchRequest();
         request.indices(INDEX_NAME);
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        TermsAggregationBuilder aggregation = AggregationBuilders.terms("by_" + fieldName)
-                .field(fieldName + ".keyword");
-        aggregation.subAggregation(AggregationBuilders.count("number_of_books"));
+
+        TermsAggregationBuilder aggregation = AggregationBuilders.terms(fieldName)
+                .field(fieldName);
+        aggregation.subAggregation(AggregationBuilders.count("number_of_books").field("id"));
         searchSourceBuilder.aggregation(aggregation);
+        request.source(searchSourceBuilder);
 
         return retrieveAggregationFromSearchResponse(client.search(request, RequestOptions.DEFAULT), fieldName);
     }
@@ -177,10 +185,15 @@ public class ElasticService {
     private Map<String, Long> retrieveAggregationFromSearchResponse(SearchResponse response, String fieldName) {
 
         Map<String, Long> result = new HashMap<>();
+
         Aggregations aggregations = response.getAggregations();
-        Terms fieldAggregation = aggregations.get("by_" + fieldName);
+        System.out.println(aggregations.asMap());
+        Terms fieldAggregation = aggregations.get(fieldName);
         for (Terms.Bucket bucket : fieldAggregation.getBuckets()) {
-            result.put(bucket.getKeyAsString(), bucket.getAggregations().get("number_of_books"));
+            for (Aggregation aggregation : bucket.getAggregations()) {
+                List<Terms.Bucket> buckets = aggregation.getBuckets();
+            }
+            result.put(bucket.getKeyAsString(), 5L);
         }
         return result;
     }
