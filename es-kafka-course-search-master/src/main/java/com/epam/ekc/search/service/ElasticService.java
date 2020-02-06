@@ -1,9 +1,9 @@
 package com.epam.ekc.search.service;
 
+import com.epam.ekc.search.dto.BookDocument;
 import com.epam.ekc.search.model.Book;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import org.apache.kafka.common.metrics.stats.Avg;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -19,10 +19,8 @@ import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -41,12 +39,13 @@ public class ElasticService {
 
     private final RestHighLevelClient client;
     private final ObjectMapper objectMapper;
+    private final BookDocumentConverter converter;
 
     public static final String INDEX_NAME = "book_index";
     public static final String INDEX_MAPPING = "{\n" +
             "  \"properties\": {\n" +
             "    \"id\": {\n" +
-            "      \"type\": \"keyword\"\n" +
+            "      \"type\": \"text\"\n" +
             "    },\n" +
             "    \"customerId\": {\n" +
             "      \"type\": \"text\"\n" +
@@ -68,7 +67,7 @@ public class ElasticService {
             "      \"format\": \"date_optional_time\"\n" +
             "    },\n" +
             "    \"authors\": {\n" +
-            "      \"type\": \"nested\"\n" +
+            "      \"type\": \"text\"\n" +
             "    }\n" +
             "  }\n" +
             "}";
@@ -115,13 +114,14 @@ public class ElasticService {
     }
 
     private IndexRequest prepareIndexRequest(Book book, String indexName) {
-        Map<String, Object> bookMap = objectMapper.convertValue(book, Map.class);
+        BookDocument bookDocument = converter.convertToDocument(book);
+        Map<String, Object> bookMap = objectMapper.convertValue(bookDocument, Map.class);
         return new IndexRequest(indexName)
-                .id(book.getId())
+                .id(bookDocument.getId())
                 .source(bookMap);
     }
 
-    public List<Book> findAll() throws IOException {
+    public List<BookDocument> findAll() throws IOException {
         SearchRequest request = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.query(QueryBuilders.matchAllQuery());
@@ -130,14 +130,14 @@ public class ElasticService {
         searchSourceBuilder.from(0);
         searchSourceBuilder.size(20);
 
-        return retrieveResultsFromSearchResult(client.search(request, RequestOptions.DEFAULT));
+        return retrieveResultsFromSearchResponse(client.search(request, RequestOptions.DEFAULT));
     }
 
     public Map<String, Object> searchByField(String fieldName, String value, int fromResult, int numberOfResults) throws IOException {
         Map<String, Object> result = new HashMap<>();
         SearchResponse response = searchByField(fieldName, value, INDEX_NAME, fromResult, numberOfResults);
         result.put("Total number of found documents", getTotalNumberOfHits(response));
-        result.put("Found documents on positions " + fromResult + "-" + (fromResult + numberOfResults), retrieveResultsFromSearchResult(response));
+        result.put("Found documents on positions " + fromResult + "-" + (fromResult + numberOfResults), retrieveResultsFromSearchResponse(response));
         return result;
     }
 
@@ -155,12 +155,12 @@ public class ElasticService {
         return client.search(request, RequestOptions.DEFAULT);
     }
 
-    private List<Book> retrieveResultsFromSearchResult(SearchResponse response) {
-        List<Book> books = new ArrayList<>();
+    private List<BookDocument> retrieveResultsFromSearchResponse(SearchResponse response) {
+        List<BookDocument> books = new ArrayList<>();
         SearchHit[] hits = response.getHits().getHits();
 
         for (SearchHit hit : hits) {
-            books.add(objectMapper.convertValue(hit.getSourceAsMap(), Book.class));
+            books.add(objectMapper.convertValue(hit.getSourceAsMap(), BookDocument.class));
         }
         return books;
     }
@@ -175,7 +175,7 @@ public class ElasticService {
         request.indices(INDEX_NAME);
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
-        TermsAggregationBuilder aggregation = AggregationBuilders.terms(fieldName)
+        TermsAggregationBuilder aggregation = AggregationBuilders.terms("by_" + fieldName)
                 .field(fieldName);
         searchSourceBuilder.aggregation(aggregation);
         request.source(searchSourceBuilder);
@@ -187,8 +187,8 @@ public class ElasticService {
 
         Map<String, Long> result = new HashMap<>();
         Aggregations aggregations = response.getAggregations();
-        Terms fieldAggregation = aggregations.get(fieldName);
-        for(Terms.Bucket bucket :fieldAggregation.getBuckets()){
+        Terms fieldAggregation = aggregations.get("by_" + fieldName);
+        for (Terms.Bucket bucket : fieldAggregation.getBuckets()) {
             result.put(bucket.getKeyAsString(), bucket.getDocCount());
         }
         return result;
