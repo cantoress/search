@@ -22,20 +22,24 @@ ext {
     set('springCloudVersion', "Hoxton.SR1")
 }
 
-//TODO: do not forget about elasticsearch.version in ext
+ext['elasticsearch.version'] = '7.3.2'
 
 dependencies {
     implementation(
             'org.springframework.boot:spring-boot-starter-web',
             'org.springframework.boot:spring-boot-starter-actuator',
+            'org.springframework.kafka:spring-kafka',
+            'org.elasticsearch.client:elasticsearch-rest-high-level-client',
             'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client',
     )
-
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation('org.springframework.boot:spring-boot-starter-test') {
         exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
     }
+
+    compile 'io.springfox:springfox-swagger2:2.9.2'
+    compile 'io.springfox:springfox-swagger-ui:2.9.2'
 }
 
 dependencyManagement {
