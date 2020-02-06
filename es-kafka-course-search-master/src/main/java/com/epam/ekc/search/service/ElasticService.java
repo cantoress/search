@@ -3,6 +3,7 @@ package com.epam.ekc.search.service;
 import com.epam.ekc.search.model.Book;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.apache.kafka.common.metrics.stats.Avg;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -21,6 +22,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -175,7 +177,6 @@ public class ElasticService {
 
         TermsAggregationBuilder aggregation = AggregationBuilders.terms(fieldName)
                 .field(fieldName);
-        aggregation.subAggregation(AggregationBuilders.count("number_of_books").field("id"));
         searchSourceBuilder.aggregation(aggregation);
         request.source(searchSourceBuilder);
 
@@ -185,15 +186,10 @@ public class ElasticService {
     private Map<String, Long> retrieveAggregationFromSearchResponse(SearchResponse response, String fieldName) {
 
         Map<String, Long> result = new HashMap<>();
-
         Aggregations aggregations = response.getAggregations();
-        System.out.println(aggregations.asMap());
         Terms fieldAggregation = aggregations.get(fieldName);
-        for (Terms.Bucket bucket : fieldAggregation.getBuckets()) {
-            for (Aggregation aggregation : bucket.getAggregations()) {
-                List<Terms.Bucket> buckets = aggregation.getBuckets();
-            }
-            result.put(bucket.getKeyAsString(), 5L);
+        for(Terms.Bucket bucket :fieldAggregation.getBuckets()){
+            result.put(bucket.getKeyAsString(), bucket.getDocCount());
         }
         return result;
     }
