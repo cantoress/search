@@ -17,6 +17,7 @@ import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -62,7 +63,13 @@ public class ElasticService {
             "      \"type\": \"keyword\"\n" +
             "    },\n" +
             "    \"title\": {\n" +
-            "      \"type\": \"text\"\n" +
+            "      \"type\": \"text\",\n" +
+            "      \"fields\": {\n" +
+            "        \"shingles\": {\n" +
+            "          \"type\": \"text\",\n" +
+            "          \"analyzer\":\"my_shingle_analyzer\"\n" +
+            "        }\n" +
+            "      }\n" +
             "    },\n" +
             "    \"language\": {\n" +
             "      \"type\": \"keyword\"\n" +
@@ -80,12 +87,37 @@ public class ElasticService {
             "  }\n" +
             "}";
 
+    private static final String INDEX_SETTINGS = "{\n" +
+            "        \"number_of_shards\": 1,  \n" +
+            "        \"analysis\": {\n" +
+            "            \"filter\": {\n" +
+            "                \"my_shingle_filter\": {\n" +
+            "                    \"type\":             \"shingle\",\n" +
+            "                    \"min_shingle_size\": 2, \n" +
+            "                    \"max_shingle_size\": 3, \n" +
+            "                    \"output_unigrams\":  false   \n" +
+            "                }\n" +
+            "            },\n" +
+            "            \"analyzer\": {\n" +
+            "                \"my_shingle_analyzer\": {\n" +
+            "                    \"type\":             \"custom\",\n" +
+            "                    \"tokenizer\":        \"standard\",\n" +
+            "                    \"filter\": [\n" +
+            "                        \"lowercase\",\n" +
+            "                        \"my_shingle_filter\" \n" +
+            "                    ]\n" +
+            "                }\n" +
+            "            }\n" +
+            "        }\n" +
+            "    }";
+
     @PostConstruct
     public void createIndex() throws IOException {
         deleteIndex(INDEX_NAME);
         if (!isIndexExist(INDEX_NAME)) {
             CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME);
             request.mapping(INDEX_MAPPING, XContentType.JSON);
+            request.settings(INDEX_SETTINGS, XContentType.JSON);
             client.indices().create(request, RequestOptions.DEFAULT);
         }
     }
@@ -140,20 +172,32 @@ public class ElasticService {
         return retrieveResultsFromSearchResponse(client.search(request, RequestOptions.DEFAULT));
     }
 
-    public Map<String, Object> searchByField(String fieldName, String value, int fromResult, int numberOfResults) throws IOException {
+    public Map<String, Object> searchByField(String fieldName, String value, int fromResult, int numberOfResults, Integer enoughFound, boolean withShingles) throws IOException {
         Map<String, Object> result = new HashMap<>();
-        SearchResponse response = searchByField(fieldName, value, INDEX_NAME, fromResult, numberOfResults);
+        SearchResponse response = searchByField(fieldName, value, INDEX_NAME, fromResult, numberOfResults, enoughFound, withShingles);
         result.put("Total number of found documents", getTotalNumberOfHits(response));
         result.put("Found documents on positions " + fromResult + "-" + (fromResult + numberOfResults), retrieveResultsFromSearchResponse(response));
         return result;
     }
 
-
-    public SearchResponse searchByField(String fieldName, String value, String indexName, int from, int number) throws IOException {
+    public SearchResponse searchByField(String fieldName, String value, String indexName, int from, int number, Integer enoughFound, boolean withShingles) throws IOException {
 
         SearchRequest request = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.query(QueryBuilders.matchQuery(fieldName, value));
+        int queryWordCount = value.split(" ").length;
+        if (withShingles) {
+            searchSourceBuilder.query(QueryBuilders.boolQuery()
+                    .must(QueryBuilders.matchQuery("title", value))
+                    .should(QueryBuilders.matchQuery("title.shingles", value)));
+        } else if ((enoughFound == null) || (queryWordCount <= enoughFound)) {
+            searchSourceBuilder.query(QueryBuilders.matchQuery(fieldName, value)
+                    .operator(Operator.AND));
+        } else {
+            searchSourceBuilder.query(QueryBuilders.matchQuery(fieldName, value)
+                    .minimumShouldMatch(String.valueOf(enoughFound)));
+        }
+
+
         request.source(searchSourceBuilder);
         request.indices(indexName);
         searchSourceBuilder.from(from);
