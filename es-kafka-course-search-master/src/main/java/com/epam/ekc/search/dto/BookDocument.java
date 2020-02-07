@@ -21,4 +21,5 @@ public class BookDocument {
     private String language;
     private Instant publicationDate;
     private List<String> authors = new ArrayList<>();
+    private String suggest;
 }

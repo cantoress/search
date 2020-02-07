@@ -17,18 +17,6 @@ public class MessageConsumer {
     private final StorageService storageService;
     private final ElasticService elasticService;
 
-//    @KafkaListener(id = "single-listener",
-//            containerFactory = "singleConsumerFactory",
-//            topics = "storage.entity",
-//            groupId = "search.one-by-one-consumer")
-//    public void handleSingleMessage(ConsumerRecord<String, String> message) throws IOException {
-//        String bookId = message.value();
-//        Book book = storageService.getBookById(bookId);
-//        System.out.println(book);
-//        elasticService.saveBookToIndex(book);
-//        System.out.println("Saved to index");
-//    }
-
     @KafkaListener(id = "single-listener",
             containerFactory = "singleConsumerFactory",
             topics = "storage.entity",

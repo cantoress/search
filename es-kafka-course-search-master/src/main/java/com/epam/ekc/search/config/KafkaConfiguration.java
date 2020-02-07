@@ -20,22 +20,6 @@ public class KafkaConfiguration {
 
     public final KafkaProperties kafkaProperties;
 
-//    @Bean
-//    public ConcurrentKafkaListenerContainerFactory<String, String> singleConsumerFactory() {
-//        var factory = new ConcurrentKafkaListenerContainerFactory<String, String>();
-//        var properties = new LinkedHashMap<String, Object>();
-//        properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaProperties.getBootstrapServers());
-//        properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-//        properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-//        properties.put(ConsumerConfig.GROUP_ID_CONFIG, "search.one-by-one-consumer");
-//        properties.put(ConsumerConfig.CLIENT_ID_CONFIG, UUID.randomUUID().toString());
-//        properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
-//
-//        var consumerFactory = new DefaultKafkaConsumerFactory<String, String>(properties);
-//        factory.setConsumerFactory(consumerFactory);
-//        return factory;
-//    }
-
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, String> singleConsumerFactory(){
         var factory = new ConcurrentKafkaListenerContainerFactory<String, String>();

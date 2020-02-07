@@ -23,6 +23,7 @@ public class BookDocumentConverter {
         bookDocument.setAuthors(book.getAuthors().stream()
                 .map(author -> author.getFirstName() + " " + author.getLastName())
                 .collect(Collectors.toList()));
+        bookDocument.setSuggest(book.getTitle());
         return bookDocument;
     }
 }

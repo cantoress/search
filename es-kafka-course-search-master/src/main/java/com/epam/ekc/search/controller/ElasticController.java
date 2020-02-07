@@ -24,12 +24,17 @@ public class ElasticController {
     }
 
     @GetMapping(value = "/find")
-    public Map<String, Object> findForField(String fieldname, String value, int fromResult, int numberOfResults) throws IOException {
-        return elasticService.searchByField(fieldname, value, fromResult, numberOfResults);
+    public Map<String, Object> findForField(String fieldName, String value, int fromResult, int numberOfResults) throws IOException {
+        return elasticService.searchByField(fieldName, value, fromResult, numberOfResults);
     }
 
     @GetMapping(value = "/aggregate")
     public Map<String, Long> countByField(String fieldname) throws IOException {
         return elasticService.countByAggregation(fieldname);
+    }
+
+    @GetMapping(value = "/suggest")
+    public List<String> suggestTitle(String start) throws IOException {
+        return elasticService.autocompleteTitle(start);
     }
 }
