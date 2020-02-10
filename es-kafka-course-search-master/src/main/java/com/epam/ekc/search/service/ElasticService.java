@@ -1,6 +1,7 @@
 package com.epam.ekc.search.service;
 
 import com.epam.ekc.search.dto.BookDocument;
+import com.epam.ekc.search.dto.BookDocumentWithNotFoundWords;
 import com.epam.ekc.search.model.Book;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +18,7 @@ import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.Operator;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -30,14 +31,12 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -67,7 +66,15 @@ public class ElasticService {
             "      \"fields\": {\n" +
             "        \"shingles\": {\n" +
             "          \"type\": \"text\",\n" +
-            "          \"analyzer\":\"my_shingle_analyzer\"\n" +
+            "          \"analyzer\": \"my_shingle_analyzer\"\n" +
+            "        },\n" +
+            "        \"en\": {\n" +
+            "          \"type\": \"text\",\n" +
+            "          \"analyzer\": \"english\"\n" +
+            "        },\n" +
+            "        \"ru\": {\n" +
+            "          \"type\": \"text\",\n" +
+            "          \"analyzer\": \"russian\"\n" +
             "        }\n" +
             "      }\n" +
             "    },\n" +
@@ -113,6 +120,10 @@ public class ElasticService {
 
     @PostConstruct
     public void createIndex() throws IOException {
+//        INDEX_NAME = "book_index";
+//        INDEX_MAPPING = Resources.getResource("index_mapping.json").toString();
+//        INDEX_SETTINGS = Resources.getResource("index_settings.json").toString();
+
         deleteIndex(INDEX_NAME);
         if (!isIndexExist(INDEX_NAME)) {
             CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME);
@@ -161,7 +172,7 @@ public class ElasticService {
                 .source(bookMap);
     }
 
-    public List<BookDocument> findAll() throws IOException {
+    public List<BookDocumentWithNotFoundWords> findAll() throws IOException {
         SearchRequest request = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.query(QueryBuilders.matchAllQuery());
@@ -169,48 +180,77 @@ public class ElasticService {
         request.indices(INDEX_NAME);
         searchSourceBuilder.from(0);
         searchSourceBuilder.size(20);
-        return retrieveResultsFromSearchResponse(client.search(request, RequestOptions.DEFAULT));
+        return retrieveResultsFromSearchResponse(client.search(request, RequestOptions.DEFAULT), null);
     }
 
-    public Map<String, Object> searchByField(String fieldName, String value, int fromResult, int numberOfResults, Integer enoughFound, boolean withShingles) throws IOException {
-        Map<String, Object> result = new HashMap<>();
-        SearchResponse response = searchByField(fieldName, value, INDEX_NAME, fromResult, numberOfResults, enoughFound, withShingles);
+    public Map<String, Object> search(String titleValue, String authorsValue, int fromResult, int numberOfResults, Integer enoughWordsForTitle, boolean withShingles, String language) throws IOException {
+        Map<String, Object> result = new LinkedHashMap<>();
+        SearchResponse response = searchByField(titleValue, authorsValue, INDEX_NAME, fromResult, numberOfResults, enoughWordsForTitle, withShingles, language);
         result.put("Total number of found documents", getTotalNumberOfHits(response));
-        result.put("Found documents on positions " + fromResult + "-" + (fromResult + numberOfResults), retrieveResultsFromSearchResponse(response));
+        result.put("Aggregated by genre field:", retrieveAggregationFromSearchResponse(response, "genre"));
+        result.put("Aggregated by type field:", retrieveAggregationFromSearchResponse(response, "type"));
+        result.put("Found documents on positions " + fromResult + "-" + (fromResult + numberOfResults), retrieveResultsFromSearchResponse(response, titleValue));
         return result;
     }
 
-    public SearchResponse searchByField(String fieldName, String value, String indexName, int from, int number, Integer enoughFound, boolean withShingles) throws IOException {
+    public SearchResponse searchByField(String titleValue, String authorsValue, String indexName, int from, int number, Integer enoughWordsForTitle, boolean withShingles, String language) throws IOException {
 
         SearchRequest request = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        int queryWordCount = value.split(" ").length;
-        if (withShingles) {
-            searchSourceBuilder.query(QueryBuilders.boolQuery()
-                    .must(QueryBuilders.matchQuery("title", value))
-                    .should(QueryBuilders.matchQuery("title.shingles", value)));
-        } else if ((enoughFound == null) || (queryWordCount <= enoughFound)) {
-            searchSourceBuilder.query(QueryBuilders.matchQuery(fieldName, value)
-                    .operator(Operator.AND));
-        } else {
-            searchSourceBuilder.query(QueryBuilders.matchQuery(fieldName, value)
-                    .minimumShouldMatch(String.valueOf(enoughFound)));
-        }
+        String[] titleValueWords = titleValue != null ? titleValue.split(" ") : null;
+        String[] authorsValueWords = authorsValue != null ? authorsValue.split(" ") : null;
+        BoolQueryBuilder queryBuilder = new BoolQueryBuilder();
 
+        if (titleValueWords != null) {
+            if (language != null && language.equalsIgnoreCase("russian")) {
+                for (String searchWord : titleValueWords) {
+                    queryBuilder.should(QueryBuilders.matchQuery("title.ru", searchWord).queryName(searchWord));
+                }
+            } else {
+                for (String searchWord : titleValueWords) {
+                    queryBuilder.should(QueryBuilders.matchQuery("title.en", searchWord).queryName(searchWord));
+                }
+            }
+
+            if (withShingles) {
+                queryBuilder.should(QueryBuilders.matchQuery("title.shingles", titleValue));
+            }
+            if (enoughWordsForTitle != null && titleValueWords.length >= enoughWordsForTitle) {
+                queryBuilder.minimumShouldMatch(String.valueOf(enoughWordsForTitle));
+            }
+        }
+        if (authorsValueWords != null) {
+            for (String searchWord : authorsValueWords) {
+                queryBuilder.should(QueryBuilders.matchQuery("authors", searchWord).queryName(searchWord));
+            }
+        }
+        searchSourceBuilder.query(queryBuilder);
+
+        TermsAggregationBuilder genreAggregation = AggregationBuilders.terms("by_genre")
+                .field("genre");
+        searchSourceBuilder.aggregation(genreAggregation);
+        TermsAggregationBuilder typeAggregation = AggregationBuilders.terms("by_type")
+                .field("type");
+        searchSourceBuilder.aggregation(typeAggregation);
 
         request.source(searchSourceBuilder);
         request.indices(indexName);
         searchSourceBuilder.from(from);
         searchSourceBuilder.size(number);
-
         return client.search(request, RequestOptions.DEFAULT);
     }
 
-    private List<BookDocument> retrieveResultsFromSearchResponse(SearchResponse response) {
-        List<BookDocument> books = new ArrayList<>();
+    private List<BookDocumentWithNotFoundWords> retrieveResultsFromSearchResponse(SearchResponse response, String searchValue) {
+        List<BookDocumentWithNotFoundWords> books = new ArrayList<>();
         SearchHit[] hits = response.getHits().getHits();
         for (SearchHit hit : hits) {
-            books.add(objectMapper.convertValue(hit.getSourceAsMap(), BookDocument.class));
+            List<String> searchWords = searchValue != null ? new ArrayList<>(Arrays.asList(searchValue.split(" "))) : null;
+            BookDocument document = objectMapper.convertValue(hit.getSourceAsMap(), BookDocument.class);
+            List<String> foundWords = Arrays.asList(hit.getMatchedQueries());
+            if (searchWords != null) {
+                searchWords.removeAll(foundWords);
+            }
+            books.add(new BookDocumentWithNotFoundWords(document, searchWords));
         }
         return books;
     }
@@ -218,19 +258,6 @@ public class ElasticService {
     public long getTotalNumberOfHits(SearchResponse response) {
         TotalHits totalHits = response.getHits().getTotalHits();
         return totalHits.value;
-    }
-
-    public Map<String, Long> countByAggregation(String fieldName) throws IOException {
-        SearchRequest request = new SearchRequest();
-        request.indices(INDEX_NAME);
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-
-        TermsAggregationBuilder aggregation = AggregationBuilders.terms("by_" + fieldName)
-                .field(fieldName);
-        searchSourceBuilder.aggregation(aggregation);
-        request.source(searchSourceBuilder);
-
-        return retrieveAggregationFromSearchResponse(client.search(request, RequestOptions.DEFAULT), fieldName);
     }
 
     private Map<String, Long> retrieveAggregationFromSearchResponse(SearchResponse response, String fieldName) {
@@ -245,8 +272,6 @@ public class ElasticService {
     }
 
     public List<String> autocompleteTitle(String start) throws IOException {
-        List<String> suggestions = new ArrayList<>();
-
         SearchRequest request = new SearchRequest();
         request.indices(INDEX_NAME);
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
@@ -268,6 +293,35 @@ public class ElasticService {
         for (CompletionSuggestion.Entry entry : termSuggestion.getEntries()) {
             for (CompletionSuggestion.Entry.Option option : entry) {
                 suggestion.add(option.getText().string());
+            }
+        }
+        return suggestion;
+    }
+
+    public List<String> didYouMean(String value) throws IOException {
+        SearchRequest request = new SearchRequest();
+        request.indices(INDEX_NAME);
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        SuggestionBuilder termSuggestionBuilder =
+                SuggestBuilders.phraseSuggestion("title")
+                        .realWordErrorLikelihood(1.0f)
+                        .highlight("<b>", "</b>")
+                        .text(value);
+        SuggestBuilder suggestBuilder = new SuggestBuilder();
+        suggestBuilder.addSuggestion("didyoumean_title", termSuggestionBuilder);
+        searchSourceBuilder.suggest(suggestBuilder);
+        request.source(searchSourceBuilder);
+        return retrieveDidYouMeanFromSearchResponse(client.search(request, RequestOptions.DEFAULT));
+    }
+
+    private List<String> retrieveDidYouMeanFromSearchResponse(SearchResponse response) {
+        List<String> suggestion = new ArrayList<>();
+        Suggest suggest = response.getSuggest();
+        PhraseSuggestion termSuggestion = suggest.getSuggestion("didyoumean_title");
+        for (PhraseSuggestion.Entry entry : termSuggestion.getEntries()) {
+            for (PhraseSuggestion.Entry.Option option : entry) {
+                suggestion.add(option.getHighlighted().string());
             }
         }
         return suggestion;

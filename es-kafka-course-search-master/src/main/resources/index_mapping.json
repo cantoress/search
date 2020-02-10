@@ -1,0 +1,48 @@
+{
+  "properties": {
+    "id": {
+      "type": "text"
+    },
+    "customerId": {
+      "type": "text"
+    },
+    "type": {
+      "type": "keyword"
+    },
+    "genre": {
+      "type": "keyword"
+    },
+    "title": {
+      "type": "text",
+      "fields": {
+        "shingles": {
+          "type": "text",
+          "analyzer": "my_shingle_analyzer"
+        },
+        "en": {
+          "type": "text",
+          "analyzer": "english"
+        },
+        "ru": {
+          "type": "text",
+          "analyzer": "russian"
+        }
+      }
+    },
+    "language": {
+      "type": "keyword"
+    },
+    "publicationDate": {
+      "type": "date",
+      "format": "date_optional_time"
+    },
+    "authors": {
+      "type": "text"
+    },
+    "suggest": {
+      "type": "completion"
+    }
+  }
+}
+
+

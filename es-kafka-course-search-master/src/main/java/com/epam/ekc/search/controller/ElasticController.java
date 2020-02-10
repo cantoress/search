@@ -1,6 +1,6 @@
 package com.epam.ekc.search.controller;
 
-import com.epam.ekc.search.dto.BookDocument;
+import com.epam.ekc.search.dto.BookDocumentWithNotFoundWords;
 import com.epam.ekc.search.service.ElasticService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,22 +19,22 @@ public class ElasticController {
     private final ElasticService elasticService;
 
     @GetMapping
-    public List<BookDocument> findALL() throws IOException {
+    public List<BookDocumentWithNotFoundWords> findall() throws IOException {
         return elasticService.findAll();
     }
 
     @GetMapping(value = "/find")
-    public Map<String, Object> findForField(String fieldName, String value, int fromResult, int numberOfResults, Integer enoughWords, boolean withShingles) throws IOException {
-        return elasticService.searchByField(fieldName, value, fromResult, numberOfResults, enoughWords, withShingles);
-    }
-
-    @GetMapping(value = "/aggregate")
-    public Map<String, Long> countByField(String fieldName) throws IOException {
-        return elasticService.countByAggregation(fieldName);
+    public Map<String, Object> findForField(String titleValue, String authorsValue, int fromResult, int numberOfResults, Integer enoughWordsForTitle, boolean withShingles, String language) throws IOException {
+        return elasticService.search(titleValue, authorsValue, fromResult, numberOfResults, enoughWordsForTitle, withShingles, language);
     }
 
     @GetMapping(value = "/suggest")
     public List<String> suggestTitle(String start) throws IOException {
         return elasticService.autocompleteTitle(start);
+    }
+
+    @GetMapping(value = "/didyoumean")
+    public List<String> didYouMeanTitle(String title) throws IOException {
+        return elasticService.didYouMean(title);
     }
 }
