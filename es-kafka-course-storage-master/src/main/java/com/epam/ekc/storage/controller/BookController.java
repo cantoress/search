@@ -43,12 +43,9 @@ public class BookController {
     @PostMapping(value = "/batch", consumes = APPLICATION_JSON_VALUE)
     public List<Book> saveAll(@RequestBody List<Book> books) throws JsonProcessingException {
         books.forEach(a -> a.setId(randomUUID().toString()));
-        System.out.println(books.get(0).getAuthors());
         books.forEach(a -> savePassedAuthors(a.getAuthors()));
         List<Book> savedBooks = bookRepository.saveAll(books);
-        for (Book book : savedBooks
-        ) {
-//            System.out.println(book.getAuthors());
+        for (Book book : savedBooks) {
             messageProducer.sendMessage(book);
         }
         return savedBooks;

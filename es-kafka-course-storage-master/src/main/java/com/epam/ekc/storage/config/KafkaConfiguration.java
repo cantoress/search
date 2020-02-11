@@ -26,6 +26,7 @@ public class KafkaConfiguration {
         settings.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaProperties.getBootstrapServers());
         settings.put(ProducerConfig.ACKS_CONFIG, "all");
         settings.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, "1");
+        settings.put(ProducerConfig.RETRIES_CONFIG, 3);
         settings.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, "gzip");
         settings.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         settings.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
