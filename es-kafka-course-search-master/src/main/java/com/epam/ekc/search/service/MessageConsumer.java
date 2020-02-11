@@ -8,7 +8,9 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -22,9 +24,12 @@ public class MessageConsumer {
             topics = "storage.entity",
             groupId = "search.batch")
     public void receiveMessage(List<ConsumerRecord<String, String>> messages) throws IOException {
-        List<Book> books = new ArrayList<>();
+        Set<String> keys = new HashSet<>();
         for (ConsumerRecord<String, String> message : messages) {
-            var key = message.key();
+            keys.add(message.key());
+        }
+        List<Book> books = new ArrayList<>();
+        for (String key : keys) {
             Book bookFromMessage = storageService.getBookById(key);
             books.add(bookFromMessage);
         }

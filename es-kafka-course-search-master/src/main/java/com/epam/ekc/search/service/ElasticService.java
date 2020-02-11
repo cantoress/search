@@ -15,10 +15,13 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
+import org.elasticsearch.client.indices.AnalyzeRequest;
+import org.elasticsearch.client.indices.AnalyzeResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -102,7 +105,7 @@ public class ElasticService {
             "                    \"type\":             \"shingle\",\n" +
             "                    \"min_shingle_size\": 2, \n" +
             "                    \"max_shingle_size\": 3, \n" +
-            "                    \"output_unigrams\":  false   \n" +
+            "                    \"output_unigrams\":  true   \n" +
             "                }\n" +
             "            },\n" +
             "            \"analyzer\": {\n" +
@@ -120,9 +123,6 @@ public class ElasticService {
 
     @PostConstruct
     public void createIndex() throws IOException {
-//        INDEX_NAME = "book_index";
-//        INDEX_MAPPING = Resources.getResource("index_mapping.json").toString();
-//        INDEX_SETTINGS = Resources.getResource("index_settings.json").toString();
 
         deleteIndex(INDEX_NAME);
         if (!isIndexExist(INDEX_NAME)) {
@@ -189,7 +189,8 @@ public class ElasticService {
         result.put("Total number of found documents", getTotalNumberOfHits(response));
         result.put("Aggregated by genre field:", retrieveAggregationFromSearchResponse(response, "genre"));
         result.put("Aggregated by type field:", retrieveAggregationFromSearchResponse(response, "type"));
-        result.put("Found documents on positions " + fromResult + "-" + (fromResult + numberOfResults), retrieveResultsFromSearchResponse(response, titleValue));
+        result.put("Found documents on positions " + fromResult + "-" + (fromResult + numberOfResults),
+                retrieveResultsFromSearchResponse(response, Optional.ofNullable(titleValue).orElse("") + " " + Optional.ofNullable(authorsValue).orElse("")));
         return result;
     }
 
@@ -240,19 +241,32 @@ public class ElasticService {
         return client.search(request, RequestOptions.DEFAULT);
     }
 
-    private List<BookDocumentWithNotFoundWords> retrieveResultsFromSearchResponse(SearchResponse response, String searchValue) {
+    private List<BookDocumentWithNotFoundWords> retrieveResultsFromSearchResponse(SearchResponse response, String searchValue) throws IOException {
         List<BookDocumentWithNotFoundWords> books = new ArrayList<>();
         SearchHit[] hits = response.getHits().getHits();
+        List<String> analyzedSearchValues = analyzeSearchString(searchValue);
         for (SearchHit hit : hits) {
             List<String> searchWords = searchValue != null ? new ArrayList<>(Arrays.asList(searchValue.split(" "))) : null;
             BookDocument document = objectMapper.convertValue(hit.getSourceAsMap(), BookDocument.class);
             List<String> foundWords = Arrays.asList(hit.getMatchedQueries());
             if (searchWords != null) {
                 searchWords.removeAll(foundWords);
+                searchWords.retainAll(analyzedSearchValues);
             }
             books.add(new BookDocumentWithNotFoundWords(document, searchWords));
         }
         return books;
+    }
+
+    private List<String> analyzeSearchString(String search) throws IOException {
+        AnalyzeRequest request = AnalyzeRequest.withGlobalAnalyzer("english", search);
+        AnalyzeResponse response = client.indices().analyze(request, RequestOptions.DEFAULT);
+        List<AnalyzeResponse.AnalyzeToken> tokens = response.getTokens();
+        List<String> result = new ArrayList<>();
+        for (AnalyzeResponse.AnalyzeToken token : tokens) {
+            result.add(token.getTerm());
+        }
+        return result;
     }
 
     public long getTotalNumberOfHits(SearchResponse response) {
@@ -304,9 +318,13 @@ public class ElasticService {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         SuggestionBuilder termSuggestionBuilder =
-                SuggestBuilders.phraseSuggestion("title")
+                SuggestBuilders.phraseSuggestion("title.shingles")
+                        .maxErrors(3f)
+                        .size(5)
+                        .gramSize(3)
                         .realWordErrorLikelihood(1.0f)
                         .highlight("<b>", "</b>")
+                        .collateQuery(QueryBuilders.matchQuery("title", "{{suggestion}}").operator(Operator.AND).toString())
                         .text(value);
         SuggestBuilder suggestBuilder = new SuggestBuilder();
         suggestBuilder.addSuggestion("didyoumean_title", termSuggestionBuilder);
