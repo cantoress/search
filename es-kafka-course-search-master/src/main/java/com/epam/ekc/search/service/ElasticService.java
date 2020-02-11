@@ -259,7 +259,8 @@ public class ElasticService {
     }
 
     private List<String> analyzeSearchString(String search) throws IOException {
-        AnalyzeRequest request = AnalyzeRequest.withGlobalAnalyzer("english", search);
+        AnalyzeRequest request = AnalyzeRequest.buildCustomAnalyzer("standard").addTokenFilter("stop").build(search);
+
         AnalyzeResponse response = client.indices().analyze(request, RequestOptions.DEFAULT);
         List<AnalyzeResponse.AnalyzeToken> tokens = response.getTokens();
         List<String> result = new ArrayList<>();
