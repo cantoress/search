@@ -1,0 +1,69 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Main stack containing links to S3 buckets with other stacks
+Resources:
+  SecurityGroupStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://aws-kafka-elastic-course-stack-bucket.s3-us-west-2.amazonaws.com/SecurityGroupCloudFormation.yml
+      TimeoutInMinutes: '15'
+  IAMRoleStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://aws-kafka-elastic-course-stack-bucket.s3-us-west-2.amazonaws.com/IAMRoleCloudFormation.yml
+      TimeoutInMinutes: '15'
+  ElasticsearchStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - IAMRoleStack
+    Properties:
+      TemplateURL: https://aws-kafka-elastic-course-stack-bucket.s3-us-west-2.amazonaws.com/ElasticCloudFormation.yml
+      TimeoutInMinutes: '15'
+      Parameters:
+        IAMRoleArn: {"Fn::GetAtt": ["IAMRoleStack","Outputs.IAMRoleArn"]}
+  DynamoDBStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://aws-kafka-elastic-course-stack-bucket.s3-us-west-2.amazonaws.com/DynamoCloudFormation.yml
+      TimeoutInMinutes: '15'
+  SQSStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://aws-kafka-elastic-course-stack-bucket.s3-us-west-2.amazonaws.com/SQSCloudFormation.yml
+      TimeoutInMinutes: '30'
+  EC2EurikaStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - ElasticsearchStack
+      - DynamoDBStack
+      - SQSStack
+      - SecurityGroupStack
+    Properties:
+      TemplateURL: https://aws-kafka-elastic-course-stack-bucket.s3-us-west-2.amazonaws.com/EC2EurikaCloudFormation.yml
+      TimeoutInMinutes: '15'
+      Parameters:
+#        IAMRoleArn: {"Fn::GetAtt": ["IAMRoleStack","Outputs.IAMRoleArn"]}
+        SecurityGroupId: {"Fn::GetAtt": ["SecurityGroupStack","Outputs.SecurityGroupID"]}
+  EC2StorageStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - EC2EurikaStack
+    Properties:
+      TemplateURL: https://aws-kafka-elastic-course-stack-bucket.s3-us-west-2.amazonaws.com/EC2StorageCloudFormation.yml
+      TimeoutInMinutes: '15'
+      Parameters:
+#        IAMRoleArn: {"Fn::GetAtt": ["IAMRoleStack","Outputs.IAMRoleArn"]}
+        EurikaIP: {"Fn::GetAtt": ["EC2EurikaStack","Outputs.EurikaIP"]}
+        SecurityGroupId: {"Fn::GetAtt": ["SecurityGroupStack","Outputs.SecurityGroupID"]}
+  EC2SearchStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - EC2StorageStack
+    Properties:
+      TemplateURL: https://aws-kafka-elastic-course-stack-bucket.s3-us-west-2.amazonaws.com/EC2SearchCloudFormation.yml
+      TimeoutInMinutes: '15'
+      Parameters:
+#        IAMRoleArn: {"Fn::GetAtt": ["IAMRoleStack","Outputs.IAMRoleArn"]}
+        EurikaIP: {"Fn::GetAtt": ["EC2EurikaStack","Outputs.EurikaIP"]}
+        ElasticEndpoint: {"Fn::GetAtt": ["ElasticsearchStack","Outputs.ElasticAddress"]}
+        StorageIP: {"Fn::GetAtt": ["EC2StorageStack","Outputs.StorageIP"]}
+        SecurityGroupId: {"Fn::GetAtt": ["SecurityGroupStack","Outputs.SecurityGroupID"]}

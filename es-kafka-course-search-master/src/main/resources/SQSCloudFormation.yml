@@ -1,0 +1,11 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  SQSQueueName:
+    Description: "Name of SQS queue"
+    Type: String
+    Default: "BookNotifications"
+Resources:
+  SQSQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Ref SQSQueueName

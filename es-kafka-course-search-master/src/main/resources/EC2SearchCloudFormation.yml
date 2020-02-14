@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS CloudFormation Template thar creates EC2 instance for Confluence platform
+Parameters:
+  #image with docker installed and docker-compose and docker-confluenthub on it
+  ImageID:
+    Description: "Image id for EC2"
+    Type: String
+    Default: "ami-079f731edfe27c29c"
+  EC2InstanceType:
+    Description: "Instance type"
+    Type: String
+    Default: "t2.micro"
+  PemKeyName:
+    Description: ".pem key name to access EC2"
+    Type: String
+    Default: "personal_key_for_ec2"
+  IAMRole:
+    Description: "IAM profile instance"
+    Type: String
+    Default: "EC2ToESandSQSandDynamoAccess"
+  EurikaIP:
+    Type: String
+  ElasticEndpoint:
+      Type: String
+  StorageIP:
+    Type: String
+  SecurityGroupId:
+    Type: String
+Resources:
+  Eip:
+    Type: AWS::EC2::EIP
+  Ec2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref ImageID
+      InstanceType: !Ref EC2InstanceType
+      KeyName: !Ref PemKeyName
+      IamInstanceProfile: !Ref IAMRole
+      SecurityGroupIds:
+        - !Ref SecurityGroupId
+      Tags:
+        - Key: Name
+          Value: Search
+      UserData:
+        Fn::Base64: !Sub
+          - |
+            #!/bin/bash -x
+            sudo su
+            yum update -y
+            yum install -y docker
+            service docker start
+            export EURIKAIP=${eurika_ip}
+            export STORAGEIP=${storage_ip}
+            export ELASTICENDPOINT=${elastic_endpoint}
+            docker container run --rm -e EURIKAIP -e ELASTICENDPOINT -e STORAGEIP -p 10002:10002 dragunovasa/searchapp
+          - eurika_ip: !Ref EurikaIP
+            elastic_endpoint: !Ref ElasticEndpoint
+            storage_ip: !Ref StorageIP
+  EipAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      EIP: !Ref Eip
+      InstanceId: !Ref Ec2

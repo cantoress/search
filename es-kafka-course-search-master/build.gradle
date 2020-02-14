@@ -40,6 +40,8 @@ dependencies {
 
     compile 'io.springfox:springfox-swagger2:2.9.2'
     compile 'io.springfox:springfox-swagger-ui:2.9.2'
+    compile group: 'com.amazonaws', name: 'aws-java-sdk-sqs', version: '1.11.34'
+    compile group: 'com.amazonaws', name: 'aws-java-sdk-core', version: '1.11.714'
 }
 
 dependencyManagement {

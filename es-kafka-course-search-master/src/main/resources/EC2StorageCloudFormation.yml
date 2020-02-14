@@ -1,0 +1,59 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS CloudFormation Template thar creates EC2 instance for Confluence platform
+Parameters:
+  #image with docker installed and docker-compose and docker-confluenthub on it
+  ImageID:
+    Description: "Image id for EC2"
+    Type: String
+    Default: "ami-079f731edfe27c29c"
+  EC2InstanceType:
+    Description: "Instance type"
+    Type: String
+    Default: "t2.micro"
+  PemKeyName:
+    Description: ".pem key name to access EC2"
+    Type: String
+    Default: "personal_key_for_ec2"
+  IAMRole:
+    Description: "IAM profile instance"
+    Type: String
+    Default: "EC2ToESandSQSandDynamoAccess"
+  EurikaIP:
+    Type: String
+  SecurityGroupId:
+    Type: String
+Resources:
+  Eip:
+    Type: AWS::EC2::EIP
+  Ec2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref ImageID
+      InstanceType: !Ref EC2InstanceType
+      KeyName: !Ref PemKeyName
+      IamInstanceProfile: !Ref IAMRole
+      SecurityGroupIds:
+        - !Ref SecurityGroupId
+      Tags:
+        - Key: Name
+          Value: Storage
+      UserData:
+        Fn::Base64: !Sub
+          - |
+            #!/bin/bash -x
+            sudo su
+            yum update -y
+            yum install -y docker
+            service docker start
+            export EURIKAIP=${eurika_ip}
+            docker container run --rm -e EURIKAIP -p 10001:10001 dragunovasa/storageapp
+          - eurika_ip: !Ref EurikaIP
+  EipAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      EIP: !Ref Eip
+      InstanceId: !Ref Ec2
+Outputs:
+  StorageIP:
+    Description: The endpoint of Storage created
+    Value: {"Fn::GetAtt": ["Ec2","PublicIp"]}

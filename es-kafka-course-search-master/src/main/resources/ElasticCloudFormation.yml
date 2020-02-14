@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: ElasticsearchDomain resource
+Parameters:
+  DomainName:
+    Description: User defined Elasticsearch Domain name
+    Type: String
+    Default: "aws-course-elastic"
+  ElasticsearchVersion:
+    Description: User defined Elasticsearch Version
+    Type: String
+    Default: "7.1"
+  InstanceType:
+    Type: String
+    Default: t2.small.elasticsearch
+  IAMRoleArn:
+    Type: String
+Resources:
+  ElasticsearchDomain:
+    Type: AWS::Elasticsearch::Domain
+    Properties:
+      DomainName: !Ref DomainName
+      ElasticsearchVersion: !Ref ElasticsearchVersion
+      ElasticsearchClusterConfig:
+        InstanceCount: '1'
+        InstanceType: !Ref InstanceType
+      EBSOptions:
+        EBSEnabled: 'true'
+        Iops: 0
+        VolumeSize: 10
+        VolumeType: standard
+      AccessPolicies:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: "*"
+            Action: 'es:*'
+            Condition:
+              IpAddress:
+                aws:SourceIp:
+                  - "185.44.13.32/29"
+                  - "46.229.218.0/24"
+                  - "5.188.107.104/29"
+            Resource: '*'
+          - Effect: Allow
+            Principal:
+              AWS: !Ref IAMRoleArn
+            Action: 'es:*'
+            Resource: '*'
+Outputs:
+  ElasticAddress:
+    Description: The endpoint of ElasticSearch created
+    Value: {"Fn::GetAtt": ["ElasticsearchDomain","DomainEndpoint"]}

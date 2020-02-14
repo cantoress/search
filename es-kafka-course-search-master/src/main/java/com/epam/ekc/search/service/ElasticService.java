@@ -124,7 +124,7 @@ public class ElasticService {
     @PostConstruct
     public void createIndex() throws IOException {
 
-        deleteIndex(INDEX_NAME);
+//        deleteIndex(INDEX_NAME);
         if (!isIndexExist(INDEX_NAME)) {
             CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME);
             request.mapping(INDEX_MAPPING, XContentType.JSON);
@@ -155,10 +155,10 @@ public class ElasticService {
         client.index(request, RequestOptions.DEFAULT);
     }
 
-    public void saveListOfBooksToIndex(List<Book> books, String indexName) throws IOException {
+    public void saveListOfBooksToIndex(List<Book> books) throws IOException {
         BulkRequest request = new BulkRequest();
         for (Book book : books) {
-            request.add(prepareIndexRequest(book, indexName));
+            request.add(prepareIndexRequest(book, INDEX_NAME));
         }
         client.bulk(request, RequestOptions.DEFAULT);
         System.out.println("Saved " + books.size() + " books");
@@ -180,7 +180,7 @@ public class ElasticService {
         request.indices(INDEX_NAME);
         searchSourceBuilder.from(0);
         searchSourceBuilder.size(20);
-        return retrieveResultsFromSearchResponse(client.search(request, RequestOptions.DEFAULT), null);
+        return retrieveResultsFromSearchResponse(client.search(request, RequestOptions.DEFAULT), "");
     }
 
     public Map<String, Object> search(String titleValue, String authorsValue, int fromResult, int numberOfResults, Integer enoughWordsForTitle, boolean withShingles, String language) throws IOException {
