@@ -1,58 +1,76 @@
 package com.epam.ekc.storage.model;
 
+import com.amazonaws.services.dynamodbv2.datamodeling.*;
+import com.epam.ekc.storage.service.AuthorsConverter;
+import com.epam.ekc.storage.service.InstantConverter;
+import lombok.*;
+
+import javax.validation.constraints.NotEmpty;
+import javax.validation.constraints.NotNull;
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import javax.validation.constraints.NotEmpty;
-import javax.validation.constraints.NotNull;
-import javax.validation.constraints.Null;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.DBRef;
-import org.springframework.data.mongodb.core.mapping.Document;
-import org.springframework.data.mongodb.core.mapping.Field;
 
 @Data
 @NoArgsConstructor
 @EqualsAndHashCode(of = "id")
-@Document(collection = "book")
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
+@DynamoDBTable(tableName = "Book")
 public class Book implements Serializable, Identifiable {
 
-  private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 1L;
 
-  @Id
-  @Null
-  private String id;
+    private String id;
+    @NotNull
+    @NotEmpty
+    private String customerId;
+    private String type;
+    private String genre;
+    private String title;
+    private String language;
+    private Instant publicationDate;
+    private List<Author> authors = new ArrayList<>();
 
-  @NotNull
-  @NotEmpty
-  private String customerId;
+    @DynamoDBHashKey
+    public String getId() {
+        return id;
+    }
 
-  @Field("type")
-  private String type;
+    @DynamoDBAttribute
+    public String getCustomerId() {
+        return customerId;
+    }
 
-  @Field("genre")
-  private String genre;
+    @DynamoDBAttribute
+    public String getType() {
+        return type;
+    }
 
-  @Field("title")
-  private String title;
+    @DynamoDBAttribute
+    public String getGenre() {
+        return genre;
+    }
 
-  @Field("language")
-  private String language;
+    @DynamoDBAttribute
+    public String getTitle() {
+        return title;
+    }
 
-  @Field("publication_date")
-  private Instant publicationDate;
+    @DynamoDBAttribute
+    public String getLanguage() {
+        return language;
+    }
 
-  @DBRef
-  @Field("authors")
-  private List<Author> authors = new ArrayList<>();
+    @DynamoDBAttribute
+    @DynamoDBTypeConverted(converter = InstantConverter.class)
+    public Instant getPublicationDate() {
+        return publicationDate;
+    }
 
+    @DynamoDBAttribute
+    @DynamoDBTypeConverted(converter = AuthorsConverter.class)
+    public List<Author> getAuthors() {
+        return authors;
+    }
 }

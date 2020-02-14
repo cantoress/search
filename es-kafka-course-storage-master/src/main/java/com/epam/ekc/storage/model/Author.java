@@ -1,38 +1,47 @@
 package com.epam.ekc.storage.model;
 
 
+import com.amazonaws.services.dynamodbv2.datamodeling.*;
+import com.epam.ekc.storage.service.AuthorsConverter;
+import com.epam.ekc.storage.service.BookConverter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import lombok.*;
+
 import java.io.Serializable;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.DBRef;
-import org.springframework.data.mongodb.core.mapping.Document;
-import org.springframework.data.mongodb.core.mapping.Field;
 
 @Data
 @NoArgsConstructor
 @EqualsAndHashCode(of = "id")
-@Document(collection = "author")
+@DynamoDBTable(tableName = "Author")
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Author implements Serializable, Identifiable {
 
-  private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 1L;
 
-  @Id
-  private String id;
+    private String id;
+    private String firstName;
+    private String lastName;
+    @JsonIgnoreProperties("authors")
+    private Book book;
 
-  @Field("first_name")
-  private String firstName;
+    @DynamoDBHashKey
+    public String getId() {
+        return id;
+    }
 
-  @Field("last_name")
-  private String lastName;
+    @DynamoDBAttribute
+    public String getFirstName() {
+        return firstName;
+    }
 
-  @DBRef
-  @Field("book")
-  @JsonIgnoreProperties("authors")
-  private Book book;
+    @DynamoDBAttribute
+    public String getLastName() {
+        return lastName;
+    }
+
+    @DynamoDBAttribute
+    @DynamoDBTypeConverted(converter = BookConverter.class)
+    public Book getBook() {
+        return book;
+    }
 }

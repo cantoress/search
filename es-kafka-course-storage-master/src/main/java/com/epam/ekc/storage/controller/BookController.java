@@ -2,20 +2,18 @@ package com.epam.ekc.storage.controller;
 
 import com.epam.ekc.storage.model.Author;
 import com.epam.ekc.storage.model.Book;
-import com.epam.ekc.storage.repository.AuthorRepository;
-import com.epam.ekc.storage.repository.BookRepository;
-import com.epam.ekc.storage.service.MessageProducer;
+import com.epam.ekc.storage.model.Identifiable;
+import com.epam.ekc.storage.service.AuthorDynamoService;
+import com.epam.ekc.storage.service.BookDynamoService;
+import com.epam.ekc.storage.service.SQSMessageService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import static java.util.UUID.randomUUID;
 import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
@@ -26,17 +24,16 @@ import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
 @RequestMapping("api/books")
 public class BookController {
 
-    private final BookRepository bookRepository;
-    private final AuthorRepository authorRepository;
-    private final MessageProducer messageProducer;
+    private final BookDynamoService bookDynamoService;
+    private final AuthorDynamoService authorDynamoService;
+    private final SQSMessageService sqsMessageService;
 
     @PostMapping(consumes = APPLICATION_JSON_VALUE)
     public Book save(@RequestBody @Validated Book book) throws JsonProcessingException {
         book.setId(randomUUID().toString());
-        System.out.println(book.getAuthors());
         savePassedAuthors(book.getAuthors());
-        var savedBook = bookRepository.save(book);
-        messageProducer.sendMessage(savedBook);
+        var savedBook = bookDynamoService.save(book);
+        sqsMessageService.sendMessage(savedBook);
         return savedBook;
     }
 
@@ -44,35 +41,29 @@ public class BookController {
     public List<Book> saveAll(@RequestBody List<Book> books) throws JsonProcessingException {
         books.forEach(a -> a.setId(randomUUID().toString()));
         books.forEach(a -> savePassedAuthors(a.getAuthors()));
-        List<Book> savedBooks = bookRepository.saveAll(books);
-        for (Book book : savedBooks) {
-            messageProducer.sendMessage(book);
-        }
+        List<Book> savedBooks = bookDynamoService.saveAll(books);
+        List<Identifiable> list = new ArrayList<>(savedBooks);
+        sqsMessageService.sendBatchOfMessages(list);
         return savedBooks;
     }
 
-    @GetMapping
-    public Page<Book> findAll(@RequestParam int page, @RequestParam int size) {
-        log.debug("Request to get all Books");
-        return bookRepository.findAll(PageRequest.of(page, size));
-    }
 
     @GetMapping("/{id}")
-    public Optional<Book> findOne(@PathVariable String id) {
+    public Book findOne(@PathVariable String id) {
         log.debug("Request to get Book : {}", id);
-        return bookRepository.findById(id);
+        return bookDynamoService.findById(id);
     }
 
     @DeleteMapping("/{id}")
     public void delete(@PathVariable String id) {
         log.debug("Request to delete Book : {}", id);
-        bookRepository.deleteById(id);
+        bookDynamoService.deleteById(id);
     }
 
-    private void savePassedAuthors(Collection<Author> authors) {
+    private void savePassedAuthors(List<Author> authors) {
         authors.stream()
                 .filter(author -> author.getId() == null)
                 .forEach(author -> author.setId(randomUUID().toString()));
-        authorRepository.saveAll(authors);
+        authorDynamoService.saveAll(authors);
     }
 }
