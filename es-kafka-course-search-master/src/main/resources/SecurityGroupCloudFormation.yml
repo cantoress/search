@@ -9,7 +9,15 @@ Resources:
           - IpProtocol: -1
             FromPort: -1
             ToPort: -1
-            CidrIp: 0.0.0.0/0
+            CidrIp: 46.229.218.0/24
+          - IpProtocol: -1
+            FromPort: -1
+            ToPort: -1
+            CidrIp: 5.188.107.104/29
+          - IpProtocol: -1
+            FromPort: -1
+            ToPort: -1
+            CidrIp: 185.44.13.32/29
           SecurityGroupEgress:
           - IpProtocol: -1
             FromPort: -1
