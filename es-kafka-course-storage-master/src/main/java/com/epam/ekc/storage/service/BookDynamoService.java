@@ -45,9 +45,7 @@ public class BookDynamoService {
     }
 
     public List<Book> saveAll(List<Book> books) {
-        for (Book book : books) {
-            save(book);
-        }
+        dynamoDBMapper.batchSave(books);
         return books;
     }
 
